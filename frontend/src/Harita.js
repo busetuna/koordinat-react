@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import './Harita.css'; 
+import Select from 'react-select';
+
 
 // Marker ikonu düzeltme
 delete L.Icon.Default.prototype._getIconUrl;
@@ -127,24 +130,31 @@ function Harita() {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100vh' }}>
+    <div className="harita-wrapper">
       {isAdmin && (
-        <div style={{ width: '300px', padding: '10px', overflowY: 'auto', background: '#f3f4f6' }}>
-          <label>Kullanıcı Seç:
-            <select value={selectedUserId} onChange={(e) => {
-              const selectedId = e.target.value;
-              const user = users.find(u => u.id.toString() === selectedId);
-              if (user) handleUserClick(user.id, user.username);
-            }}>
-              <option value="">-- Kullanıcı Seçin --</option>
-              {users.map(user => (
-                <option key={user.id} value={user.id}>{user.username} ({user.profile__msisdn})</option>
-              ))}
-            </select>
-          </label>
+        <aside className="sidebar">
+         <label>Kullanıcı Seç:</label>
+<Select
+  options={users.map(user => ({
+    value: user.id,
+    label: `${user.username} (${user.profile__msisdn})`
+  }))}
+  placeholder="Kullanıcı ara ve seç..."
+  value={users
+    .map(user => ({ value: user.id, label: `${user.username} (${user.profile__msisdn})` }))
+    .find(option => option.value === selectedUserId)}
+  onChange={(selectedOption) => {
+    if (selectedOption) {
+      const user = users.find(u => u.id === selectedOption.value);
+      if (user) handleUserClick(user.id, user.username);
+    }
+  }}
+  isClearable
+  className="user-select"
+/>
 
           <h3>Markerlar</h3>
-          <table style={{ fontSize: '12px', width: '100%' }}>
+          <table>
             <thead>
               <tr><th>Lat</th><th>Lng</th><th>Kullanıcı</th><th>Tarih</th></tr>
             </thead>
@@ -156,15 +166,15 @@ function Harita() {
               ))}
             </tbody>
           </table>
-        </div>
+        </aside>
       )}
 
-      <div style={{ flex: 1, padding: '15px' }}>
+      <main className="map-panel">
         <h3>📍 Marker Yönetimi</h3>
 
-        <div style={{ marginBottom: '10px' }}>
+        <div className="filter-controls">
           <label>Başlangıç: <input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} /></label>
-          <label style={{ marginLeft: '10px' }}>Bitiş: <input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} /></label>
+          <label>Bitiş: <input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} /></label>
           <button onClick={async () => {
             try {
               let url = 'http://localhost:8000/api/my-markers/';
@@ -184,25 +194,27 @@ function Harita() {
           }}>🔍 Filtrele</button>
         </div>
 
-        <div>
+        <div className="form-controls">
           <input type="text" placeholder="Lat" value={lat} onChange={e => setLat(e.target.value)} />
           <input type="text" placeholder="Lng" value={lng} onChange={e => setLng(e.target.value)} />
           <button onClick={handleKaydet}>💾 Kaydet</button>
-          <button onClick={() => setSortByDate(prev => !prev)} style={{ marginLeft: '10px' }}>📅 Sırala</button>
+          <button onClick={() => setSortByDate(prev => !prev)}>📅 Sırala</button>
         </div>
 
-        {mesaj && <p>{mesaj}</p>}
+        {mesaj && <p className="message-box">{mesaj}</p>}
 
-        <MapContainer center={defaultCenter}
-                      zoom={2} 
-                      style={{ height: '600px', marginTop: '10px' }}
-                      maxBounds={[[-85, -180], [85, 180]]}
-                      maxBoundsViscosity={1.0}>
+        <MapContainer
+          center={defaultCenter}
+          zoom={2}
+          style={{ height: '600px', marginTop: '10px' }}
+          maxBounds={[[-85, -180], [85, 180]]}
+          maxBoundsViscosity={1.0}
+        >
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution="&copy; OpenStreetMap contributors"
-            noWrap={true} 
-  />
+            noWrap={true}
+          />
           {savedMarkers.map(marker => (
             <Marker
               key={marker.id}
@@ -216,15 +228,15 @@ function Harita() {
               }}
             >
               <Popup>
-  <b>{marker.username}</b><br />
-  {new Date(marker.created_at).toLocaleString()}<br />
-  <b>Latitude:</b> {marker.lat}<br />
-  <b>Longitude:</b> {marker.lng}
-</Popup>
+                <b>{marker.username}</b><br />
+                {new Date(marker.created_at).toLocaleString()}<br />
+                <b>Latitude:</b> {marker.lat}<br />
+                <b>Longitude:</b> {marker.lng}
+              </Popup>
             </Marker>
           ))}
         </MapContainer>
-      </div>
+      </main>
     </div>
   );
 }

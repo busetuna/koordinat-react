@@ -1,0 +1,109 @@
+.harita-wrapper {
+  display: flex;
+  height: 100vh;
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #f9fafb;
+}
+
+/* Sol panel */
+.sidebar {
+  width: 320px;
+  background-color: #ffffff;
+  padding: 20px;
+  border-right: 1px solid #e5e7eb;
+  overflow-y: auto;
+}
+
+.sidebar h3 {
+  margin-top: 20px;
+  margin-bottom: 10px;
+  color: #1f2937;
+  font-size: 18px;
+}
+
+.sidebar select {
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  margin-top: 6px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.sidebar table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.sidebar th,
+.sidebar td {
+  border: 1px solid #e5e7eb;
+  padding: 6px;
+  text-align: left;
+}
+
+.sidebar tr:nth-child(even) {
+  background-color: #f3f4f6;
+}
+
+/* Harita ve üst panel */
+.map-panel {
+  flex: 1;
+  padding: 25px;
+  background-color: #f3f4f6;
+}
+
+.map-panel h3 {
+  font-size: 22px;
+  margin-bottom: 15px;
+  color: #111827;
+}
+
+.filter-controls,
+.form-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 15px;
+  align-items: center;
+}
+
+.filter-controls input,
+.form-controls input {
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  font-size: 14px;
+}
+
+.filter-controls button,
+.form-controls button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  background-color: #2563eb;
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.filter-controls button:hover,
+.form-controls button:hover {
+  background-color: #1d4ed8;
+}
+
+.message-box {
+  margin: 10px 0;
+  padding: 10px;
+  background-color: #e0f2fe;
+  border-left: 5px solid #0284c7;
+  color: #0369a1;
+  border-radius: 6px;
+  font-size: 14px;
+}
+.user-select {
+  margin: 10px 0 20px;
+}
