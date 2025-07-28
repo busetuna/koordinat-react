@@ -1,29 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { GoogleMap, Marker } from '@react-google-maps/api';
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import { useNavigate } from 'react-router-dom';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
-const containerStyle = {
-  width: '100%',
-  height: '600px'
-};
+// Marker ikonu düzeltme
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
+  iconUrl: require('leaflet/dist/images/marker-icon.png'),
+  shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
+});
 
-const defaultCenter = { lat: 20, lng: 0 };
+const defaultCenter = [20, 0];
 
 function Harita() {
   const [lat, setLat] = useState('');
   const [lng, setLng] = useState('');
-  const [center, setCenter] = useState(defaultCenter);
-  const [mesaj, setMesaj] = useState('');
   const [savedMarkers, setSavedMarkers] = useState([]);
   const [users, setUsers] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedUsername, setSelectedUsername] = useState('');
-  const navigate = useNavigate();
+  const [mesaj, setMesaj] = useState('');
   const [sortByDate, setSortByDate] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-
+  const navigate = useNavigate();
 
   const token = localStorage.getItem("token");
   const isAdmin = localStorage.getItem("isAdmin") === "true";
@@ -102,18 +105,18 @@ function Harita() {
       });
   };
 
-  const handleMarkerDragEnd = async (markerId, newLat, newLng) => {
+  const handleMarkerDragEnd = async (markerId, newLatLng) => {
     try {
       await axios.patch("http://localhost:8000/api/marker/", {
         id: markerId,
-        lat: newLat,
-        lng: newLng
+        lat: newLatLng.lat,
+        lng: newLatLng.lng
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       setSavedMarkers(prev =>
-        prev.map(m => m.id === markerId ? { ...m, lat: newLat, lng: newLng } : m)
+        prev.map(m => m.id === markerId ? { ...m, lat: newLatLng.lat, lng: newLatLng.lng } : m)
       );
 
       setMesaj("✅ Marker güncellendi.");
@@ -124,97 +127,52 @@ function Harita() {
   };
 
   return (
-  <div style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif' }}>
-    {isAdmin && (
-      <div style={{ width: '300px', background: '#f9fafb', borderRight: '1px solid #ddd', padding: '20px', overflowY: 'auto' }}>
-        {/* <h2 style={{ marginBottom: '15px', fontSize: '18px', color: '#374151' }}>👥 Kullanıcılar</h2>
-        <ul style={{ listStyle: 'none', padding: 0 }}>
-          {users.map(user => (
-            <li
-              key={user.id}
-              onClick={() => handleUserClick(user.id, user.username)}
-              style={{
-                cursor: 'pointer',
-                padding: '10px',
-                marginBottom: '8px',
-                backgroundColor: selectedUserId === user.id ? '#e0f2fe' : '#f3f4f6',
-                borderRadius: '8px',
-                transition: '0.3s ease',
-                fontWeight: selectedUserId === user.id ? 'bold' : 'normal'
-              }}
-            >
-              {user.username}
-            </li>
-          ))}
-        </ul> */}
+    <div style={{ display: 'flex', height: '100vh' }}>
+      {isAdmin && (
+        <div style={{ width: '300px', padding: '10px', overflowY: 'auto', background: '#f3f4f6' }}>
+          <label>Kullanıcı Seç:
+            <select value={selectedUserId} onChange={(e) => {
+              const selectedId = e.target.value;
+              const user = users.find(u => u.id.toString() === selectedId);
+              if (user) handleUserClick(user.id, user.username);
+            }}>
+              <option value="">-- Kullanıcı Seçin --</option>
+              {users.map(user => (
+                <option key={user.id} value={user.id}>{user.username} ({user.profile__msisdn})</option>
+              ))}
+            </select>
+          </label>
 
-        <div style={{ marginTop: '30px' }}>
-          <h3 style={{ color: '#374151' }}>📋 Marker Listesi</h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px', fontSize: '13px' }}>
+          <h3>Markerlar</h3>
+          <table style={{ fontSize: '12px', width: '100%' }}>
             <thead>
-              <tr style={{ backgroundColor: '#e5e7eb' }}>
-                <th style={{ padding: '6px' }}>Lat</th>
-                <th style={{ padding: '6px' }}>Lng</th>
-                <th style={{ padding: '6px' }}>Kullanıcı</th>
-                <th style={{ padding: '6px' }}>Tarih</th>
-              </tr>
+              <tr><th>Lat</th><th>Lng</th><th>Kullanıcı</th><th>Tarih</th></tr>
             </thead>
             <tbody>
-              {[...savedMarkers]
-                .sort((a, b) => sortByDate ? new Date(a.created_at) - new Date(b.created_at) : new Date(b.created_at) - new Date(a.created_at))
-                .map((m, i) => (
-                  <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#fff' : '#f9fafb' }}>
-                    <td style={{ padding: '6px' }}>{m.lat}</td>
-                    <td style={{ padding: '6px' }}>{m.lng}</td>
-                    <td style={{ padding: '6px' }}>{m.username}</td>
-                    <td style={{ padding: '6px' }}>{new Date(m.created_at).toLocaleString()}</td>
-                  </tr>
-                ))}
+              {[...savedMarkers].sort((a, b) => sortByDate ? new Date(a.created_at) - new Date(b.created_at) : new Date(b.created_at) - new Date(a.created_at)).map((m, i) => (
+                <tr key={i}>
+                  <td>{m.lat}</td><td>{m.lng}</td><td>{m.username}</td><td>{new Date(m.created_at).toLocaleString()}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
-      </div>
-    )}
+      )}
 
-    <div style={{ flex: 1, padding: '30px', backgroundColor: '#f3f4f6' }}>
-      <h2 style={{ fontSize: '24px', marginBottom: '10px', color: '#1f2937' }}>
-        {isAdmin && selectedUsername ? `📌 ${selectedUsername} kullanıcısının markerları` : '📍 Harita Üzerinde Marker Ekle'}
-      </h2>
+      <div style={{ flex: 1, padding: '15px' }}>
+        <h3>📍 Marker Yönetimi</h3>
 
-     
-      <div style={{ marginBottom: '20px', backgroundColor: '#f9fafb', padding: '15px', borderRadius: '8px', border: '1px solid #ddd' }}>
-        <h3 style={{ marginBottom: '10px', color: '#1f2937' }}>📅 Marker Filtreleme</h3>
-        <label style={{ marginRight: '10px' }}>
-          Başlangıç:{" "}
-          <input
-            type="datetime-local"
-            value={startDate}
-            onChange={e => setStartDate(e.target.value)}
-            style={{ padding: '6px', borderRadius: '6px', border: '1px solid #ccc', marginRight: '10px' }}
-          />
-        </label>
-        <label style={{ marginRight: '10px' }}>
-          Bitiş:{" "}
-          <input
-            type="datetime-local"
-            value={endDate}
-            onChange={e => setEndDate(e.target.value)}
-            style={{ padding: '6px', borderRadius: '6px', border: '1px solid #ccc', marginRight: '10px' }}
-          />
-        </label>
-        <button
-          onClick={async () => {
+        <div style={{ marginBottom: '10px' }}>
+          <label>Başlangıç: <input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} /></label>
+          <label style={{ marginLeft: '10px' }}>Bitiş: <input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} /></label>
+          <button onClick={async () => {
             try {
               let url = 'http://localhost:8000/api/my-markers/';
               const params = [];
               if (startDate) params.push(`start=${startDate}`);
               if (endDate) params.push(`end=${endDate}`);
               if (params.length > 0) url += `?${params.join('&')}`;
-
-              const res = await axios.get(url, {
-                headers: { Authorization: `Bearer ${token}` }
-              });
-
+              const res = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
               setSavedMarkers(res.data);
               setMesaj("✅ Markerlar filtrelendi.");
               setSelectedUserId(null);
@@ -223,108 +181,52 @@ function Harita() {
               console.error("Filtreli markerlar alınamadı:", err);
               setMesaj("❌ Marker filtrelemesi başarısız.");
             }
-          }}
-          style={{
-            background: '#6366f1',
-            color: '#fff',
-            padding: '8px 12px',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer'
-          }}
-        >
-          🔍 Kendi Markerlarımı Getir
-        </button>
-      </div>
-
-      <div style={{ marginBottom: '15px' }}>
-        <button
-          onClick={() => setSortByDate(prev => !prev)}
-          style={{
-            background: '#3b82f6',
-            color: '#fff',
-            padding: '8px 12px',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            marginRight: '10px'
-          }}
-        >
-          Tarihe Göre {sortByDate ? "📅 Eski → Yeni" : "📅 Yeni → Eski"}
-        </button>
-
-        <input
-          type="text"
-          placeholder="Enlem (lat)"
-          value={lat}
-          onChange={e => setLat(e.target.value)}
-          style={{ padding: '8px', borderRadius: '6px', border: '1px solid #ccc', marginRight: '10px' }}
-        />
-        <input
-          type="text"
-          placeholder="Boylam (lng)"
-          value={lng}
-          onChange={e => setLng(e.target.value)}
-          style={{ padding: '8px', borderRadius: '6px', border: '1px solid #ccc', marginRight: '10px' }}
-        />
-        <button
-          onClick={handleKaydet}
-          style={{
-            background: '#10b981',
-            color: '#fff',
-            padding: '8px 12px',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer'
-          }}
-        >
-          💾 Veritabanına Kaydet
-        </button>
-      </div>
-
-      {mesaj && (
-        <div style={{ color: mesaj.includes("❌") || mesaj.includes("⛔") ? '#dc2626' : '#065f46', marginBottom: '15px' }}>
-          {mesaj}
+          }}>🔍 Filtrele</button>
         </div>
-      )}
 
-      <div style={{ borderRadius: '12px', overflow: 'hidden', boxShadow: '0 0 10px rgba(0,0,0,0.1)' }}>
-        <GoogleMap
-          mapContainerStyle={containerStyle}
-          center={center}
-          zoom={2}
-          options={{
-            noWrap: true,
-            minZoom: 3,
-            restriction: {
-              latLngBounds: {
-                north: 85,
-                south: -85,
-                west: -180,
-                east: 180,
-              },
-              strictBounds: true
-            }
-          }}
-        >
-          {[...savedMarkers]
-            .sort((a, b) => sortByDate ? new Date(a.created_at) - new Date(b.created_at) : new Date(b.created_at) - new Date(a.created_at))
-            .map((m) => (
-              <Marker
-                key={m.id}
-                position={{ lat: m.lat, lng: m.lng }}
-                title={`Kullanıcı: ${m.username}\nTarih: ${new Date(m.created_at).toLocaleString()}`}
-                draggable={true}
-                onDragEnd={(e) => handleMarkerDragEnd(m.id, e.latLng.lat(), e.latLng.lng())}
-              />
-            ))}
-        </GoogleMap>
+        <div>
+          <input type="text" placeholder="Lat" value={lat} onChange={e => setLat(e.target.value)} />
+          <input type="text" placeholder="Lng" value={lng} onChange={e => setLng(e.target.value)} />
+          <button onClick={handleKaydet}>💾 Kaydet</button>
+          <button onClick={() => setSortByDate(prev => !prev)} style={{ marginLeft: '10px' }}>📅 Sırala</button>
+        </div>
+
+        {mesaj && <p>{mesaj}</p>}
+
+        <MapContainer center={defaultCenter}
+                      zoom={2} 
+                      style={{ height: '600px', marginTop: '10px' }}
+                      maxBounds={[[-85, -180], [85, 180]]}
+                      maxBoundsViscosity={1.0}>
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution="&copy; OpenStreetMap contributors"
+            noWrap={true} 
+  />
+          {savedMarkers.map(marker => (
+            <Marker
+              key={marker.id}
+              position={[marker.lat, marker.lng]}
+              draggable={true}
+              eventHandlers={{
+                dragend: (e) => {
+                  const { lat, lng } = e.target.getLatLng();
+                  handleMarkerDragEnd(marker.id, { lat, lng });
+                }
+              }}
+            >
+              <Popup>
+  <b>{marker.username}</b><br />
+  {new Date(marker.created_at).toLocaleString()}<br />
+  <b>Latitude:</b> {marker.lat}<br />
+  <b>Longitude:</b> {marker.lng}
+</Popup>
+            </Marker>
+          ))}
+        </MapContainer>
       </div>
     </div>
-  </div>
-);
-
-
+  );
 }
 
 export default Harita;
