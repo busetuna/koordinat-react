@@ -127,7 +127,7 @@ function Harita() {
   <div style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif' }}>
     {isAdmin && (
       <div style={{ width: '300px', background: '#f9fafb', borderRight: '1px solid #ddd', padding: '20px', overflowY: 'auto' }}>
-        <h2 style={{ marginBottom: '15px', fontSize: '18px', color: '#374151' }}>👥 Kullanıcılar</h2>
+        {/* <h2 style={{ marginBottom: '15px', fontSize: '18px', color: '#374151' }}>👥 Kullanıcılar</h2>
         <ul style={{ listStyle: 'none', padding: 0 }}>
           {users.map(user => (
             <li
@@ -146,7 +146,7 @@ function Harita() {
               {user.username}
             </li>
           ))}
-        </ul>
+        </ul> */}
 
         <div style={{ marginTop: '30px' }}>
           <h3 style={{ color: '#374151' }}>📋 Marker Listesi</h3>
