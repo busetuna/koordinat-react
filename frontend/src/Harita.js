@@ -21,6 +21,9 @@ function Harita() {
   const [selectedUsername, setSelectedUsername] = useState('');
   const navigate = useNavigate();
   const [sortByDate, setSortByDate] = useState(false);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
 
   const token = localStorage.getItem("token");
   const isAdmin = localStorage.getItem("isAdmin") === "true";
@@ -120,7 +123,7 @@ function Harita() {
     }
   };
 
- return (
+  return (
   <div style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif' }}>
     {isAdmin && (
       <div style={{ width: '300px', background: '#f9fafb', borderRight: '1px solid #ddd', padding: '20px', overflowY: 'auto' }}>
@@ -177,6 +180,62 @@ function Harita() {
       <h2 style={{ fontSize: '24px', marginBottom: '10px', color: '#1f2937' }}>
         {isAdmin && selectedUsername ? `📌 ${selectedUsername} kullanıcısının markerları` : '📍 Harita Üzerinde Marker Ekle'}
       </h2>
+
+     
+      <div style={{ marginBottom: '20px', backgroundColor: '#f9fafb', padding: '15px', borderRadius: '8px', border: '1px solid #ddd' }}>
+        <h3 style={{ marginBottom: '10px', color: '#1f2937' }}>📅 Marker Filtreleme</h3>
+        <label style={{ marginRight: '10px' }}>
+          Başlangıç:{" "}
+          <input
+            type="datetime-local"
+            value={startDate}
+            onChange={e => setStartDate(e.target.value)}
+            style={{ padding: '6px', borderRadius: '6px', border: '1px solid #ccc', marginRight: '10px' }}
+          />
+        </label>
+        <label style={{ marginRight: '10px' }}>
+          Bitiş:{" "}
+          <input
+            type="datetime-local"
+            value={endDate}
+            onChange={e => setEndDate(e.target.value)}
+            style={{ padding: '6px', borderRadius: '6px', border: '1px solid #ccc', marginRight: '10px' }}
+          />
+        </label>
+        <button
+          onClick={async () => {
+            try {
+              let url = 'http://localhost:8000/api/my-markers/';
+              const params = [];
+              if (startDate) params.push(`start=${startDate}`);
+              if (endDate) params.push(`end=${endDate}`);
+              if (params.length > 0) url += `?${params.join('&')}`;
+
+              const res = await axios.get(url, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+
+              setSavedMarkers(res.data);
+              setMesaj("✅ Markerlar filtrelendi.");
+              setSelectedUserId(null);
+              setSelectedUsername('');
+            } catch (err) {
+              console.error("Filtreli markerlar alınamadı:", err);
+              setMesaj("❌ Marker filtrelemesi başarısız.");
+            }
+          }}
+          style={{
+            background: '#6366f1',
+            color: '#fff',
+            padding: '8px 12px',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer'
+          }}
+        >
+          🔍 Kendi Markerlarımı Getir
+        </button>
+      </div>
 
       <div style={{ marginBottom: '15px' }}>
         <button
@@ -264,6 +323,7 @@ function Harita() {
     </div>
   </div>
 );
+
 
 }
 
