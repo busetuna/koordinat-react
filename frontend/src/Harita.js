@@ -92,7 +92,6 @@ function Harita() {
   };
 
 
-// Marker'ı sıralamaya göre renklendirmek için
 const getColorByIndex = (index, total) => {
   if (total <= 1) return 'hsl(220, 100%, 50%)';
   const hue = 220; // mavi ton
@@ -101,7 +100,6 @@ const getColorByIndex = (index, total) => {
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 };
 
-// Özel ikonun rengini değiştirmek için svg-style icon üret
 const createColoredIcon = (color) => {
   const svg = `
     <svg width="40" height="40" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
@@ -250,7 +248,7 @@ const createColoredIcon = (color) => {
         key={marker.id}
         position={[marker.lat, marker.lng]}
         icon={createColoredIcon(color)} // renkli ok marker
-        draggable={true}
+        draggable={false}
         eventHandlers={{
           dragend: (e) => {
             const { lat, lng } = e.target.getLatLng();
@@ -260,9 +258,11 @@ const createColoredIcon = (color) => {
       >
         <Popup>
           <b>{marker.username}</b><br />
+          <b>MSISDN: </b>{marker.msisdn}<br />
           {new Date(marker.created_at).toLocaleString()}<br />
           <b>Latitude:</b> {marker.lat}<br />
           <b>Longitude:</b> {marker.lng}
+          
         </Popup>
       </Marker>
     );
