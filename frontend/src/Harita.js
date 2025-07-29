@@ -6,7 +6,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './Harita.css'; 
 import Select from 'react-select';
-
+import pinBase from './assets/pin.png';
 
 // Marker ikonu düzeltme
 delete L.Icon.Default.prototype._getIconUrl;
@@ -90,6 +90,32 @@ function Harita() {
       setMesaj("❌ Kayıt başarısız.");
     }
   };
+
+
+// Marker'ı sıralamaya göre renklendirmek için
+const getColorByIndex = (index, total) => {
+  if (total <= 1) return 'hsl(220, 100%, 50%)';
+  const hue = 220; // mavi ton
+  const saturation = 100;
+  const lightness = 30 + (index / (total - 1)) * 50;
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+};
+
+// Özel ikonun rengini değiştirmek için svg-style icon üret
+const createColoredIcon = (color) => {
+  const svg = `
+    <svg width="40" height="40" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <path fill="${color}" d="M256 0C167 0 96 71 96 160c0 112 160 352 160 352s160-240 160-352C416 71 345 0 256 0zm0 240c-44 0-80-36-80-80s36-80 80-80 80 36 80 80-36 80-80 80z"/>
+    </svg>
+  `;
+  return L.divIcon({
+    className: 'custom-icon',
+    html: svg,
+    iconSize: [40, 40],
+    iconAnchor: [20, 40],
+    popupAnchor: [0, -40],
+  });
+};
 
   const handleUserClick = (userId, username) => {
     setSelectedUserId(userId);
@@ -215,26 +241,33 @@ function Harita() {
             attribution="&copy; OpenStreetMap contributors"
             noWrap={true}
           />
-          {savedMarkers.map(marker => (
-            <Marker
-              key={marker.id}
-              position={[marker.lat, marker.lng]}
-              draggable={true}
-              eventHandlers={{
-                dragend: (e) => {
-                  const { lat, lng } = e.target.getLatLng();
-                  handleMarkerDragEnd(marker.id, { lat, lng });
-                }
-              }}
-            >
-              <Popup>
-                <b>{marker.username}</b><br />
-                {new Date(marker.created_at).toLocaleString()}<br />
-                <b>Latitude:</b> {marker.lat}<br />
-                <b>Longitude:</b> {marker.lng}
-              </Popup>
-            </Marker>
-          ))}
+          {[...savedMarkers]
+  .sort((a, b) => sortByDate ? new Date(a.created_at) - new Date(b.created_at) : new Date(b.created_at) - new Date(a.created_at))
+  .map((marker, index, arr) => {
+    const color = getColorByIndex(index, arr.length); // rengimizi al
+    return (
+      <Marker
+        key={marker.id}
+        position={[marker.lat, marker.lng]}
+        icon={createColoredIcon(color)} // renkli ok marker
+        draggable={true}
+        eventHandlers={{
+          dragend: (e) => {
+            const { lat, lng } = e.target.getLatLng();
+            handleMarkerDragEnd(marker.id, { lat, lng });
+          }
+        }}
+      >
+        <Popup>
+          <b>{marker.username}</b><br />
+          {new Date(marker.created_at).toLocaleString()}<br />
+          <b>Latitude:</b> {marker.lat}<br />
+          <b>Longitude:</b> {marker.lng}
+        </Popup>
+      </Marker>
+    );
+  })}
+
         </MapContainer>
       </main>
     </div>

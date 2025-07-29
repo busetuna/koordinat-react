@@ -107,3 +107,22 @@
 .user-select {
   margin: 10px 0 20px;
 }
+
+.custom-div-icon {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.custom-arrow-icon {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.arrow {
+  width: 0;
+  height: 0;
+  border-left: 12px solid transparent;
+  border-right: 12px solid transparent;
+  border-bottom: 24px solid blue; /* Bu kısım JavaScript'te dinamik olarak değişiyor */
+}
