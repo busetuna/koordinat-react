@@ -1,19 +1,103 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import axios from 'axios';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
 import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './Harita.css';
 import Select from 'react-select';
+import Supercluster from 'supercluster';
 
-// Marker ikonu düzeltme
+
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
   iconUrl: require('leaflet/dist/images/marker-icon.png'),
   shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
 });
+
+
+
+
+// Basit cluster balonu
+const createClusterIcon = (count) =>
+  L.divIcon({
+    html: `<div style="
+      width:36px;height:36px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      background:#4f46e5;color:#fff;font-weight:700">${count}</div>`,
+    className: 'cluster-icon',
+    iconSize: [36,36]
+  });
+
+function ClusterLayer({ points, iconForPoint, renderPopup }) {
+  const map = useMap();
+  const [bounds, setBounds] = useState(map.getBounds());
+  const [zoom, setZoom] = useState(map.getZoom());
+
+  useEffect(() => {
+    const onMove = () => {
+      setBounds(map.getBounds());
+      setZoom(map.getZoom());
+    };
+    map.on('moveend', onMove);
+    // ilk render’da da tetikle
+    onMove();
+    return () => map.off('moveend', onMove);
+  }, [map]);
+
+  const index = useMemo(() => {
+    const sc = new Supercluster({
+      radius: 60,     // piksel cinsinden cluster yarıçapı
+      maxZoom: 18   // en fazla hangi zoom’da cluster olsun
+    });
+    sc.load(
+      points.map(p => ({
+        type: 'Feature',
+        properties: { ...p },
+        geometry: { type: 'Point', coordinates: [p.lng, p.lat] }
+      }))
+    );
+    return sc;
+  }, [points]);
+
+  const b = bounds;
+  const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+  const clusters = index.getClusters(bbox, Math.round(zoom));
+
+  return clusters.map((c) => {
+    const [lng, lat] = c.geometry.coordinates;
+    const { cluster, point_count: count } = c.properties;
+
+    if (cluster) {
+      return (
+        <Marker
+          key={`cluster-${c.id}`}
+          position={[lat, lng]}
+          icon={createClusterIcon(count)}
+          eventHandlers={{
+            click: () => {
+              const nextZoom = Math.min(index.getClusterExpansionZoom(c.id), 19);
+              map.setView([lat, lng], nextZoom, { animate: true });
+            }
+          }}
+        />
+      );
+    }
+
+    const p = c.properties; // tekil nokta
+    return (
+      <Marker
+        key={p.id}
+        position={[lat, lng]}
+        icon={iconForPoint ? iconForPoint(p) : undefined}
+      >
+        {renderPopup && <Popup>{renderPopup(p)}</Popup>}
+      </Marker>
+    );
+  });
+}
+
 
 const defaultCenter = [41.085, 29.05]; // yakın başla (İST çevresi gibi), istersen 20,0 yap
 
@@ -143,66 +227,73 @@ function Harita() {
     });
   }, [token, isAdmin, navigate]);
 
-  // ---- Towers (OpenCellID proxy) ----
-  const fetchTowersByBBox = useCallback(async (bboxStr) => {
-    if (!OCID_KEY) {
-      console.warn('[OCI] Key yok - OCID_KEY:', OCID_KEY);
-      setMesaj('⚠️ OpenCellID API key bulunamadı. Lütfen .env veya localStorage ocid_key ayarla.');
+ const fetchTowersByBBox = useCallback(async (bboxStr) => {
+  if (!OCID_KEY) {
+    console.warn('[OCI] Key yok - OCID_KEY:', OCID_KEY);
+    setMesaj('⚠️ OpenCellID API key bulunamadı. Lütfen .env veya localStorage ocid_key ayarla.');
+    return;
+  }
+
+  try {
+    setTowerLoading(true);
+    console.log('[OCI] /api/towers/ çağrılıyor', { bboxStr });
+
+    const res = await axios.get("http://localhost:8000/api/towers/", {
+      headers: { Authorization: `Bearer ${token}` },
+      params: { bbox: bboxStr }
+    });
+
+    // ✅ backend artık url ve body döndürüyor
+    if (res.data?.error) {
+      setMesaj(`🚫 OCID: ${res.data.error} (status ${res.status || res.data.status || '?'})`);
+      console.warn('[OCI] url:', res.data.url || '(yok)');
+      console.warn('[OCI] body:', res.data.body);
+      setTowers([]);
       return;
     }
-    try {
-      setTowerLoading(true);
-      console.log('[OCI] /api/towers/ çağrılıyor', { bboxStr });
 
-      const res = await axios.get("http://localhost:8000/api/towers/", {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { bbox: bboxStr }
-      });
+    const cells = Array.isArray(res.data?.cells) ? res.data.cells : [];
+    console.log('[OCI] gelen cell sayısı:', cells.length);
 
-      // Backend normalize edilmiş { cells: [...] } döndürüyor olmalı
-      const cells = Array.isArray(res.data?.cells) ? res.data.cells : [];
-      console.log('[OCI] gelen cell sayısı:', cells.length);
-
-      const validCells = cells.filter(c => Number.isFinite(c.lat) && Number.isFinite(c.lon));
-      if (validCells.length === 0) {
-        setMesaj('ℹ️ Bu bölgede baz istasyonu bulunamadı');
-        setTowers([]);
-        return;
-      }
-
-      // stabil key
-      const uniq = new Map(
-        validCells.map(c => {
-          const base = [c.mcc ?? 'x', c.mnc ?? 'x', c.lac ?? 'x', c.cellid ?? 'x'].join('-');
-          const id = `tower-${base}`;
-          return [id, {
-            id,
-            lat: c.lat,
-            lng: c.lon,
-            radio: c.radio,
-            mcc: c.mcc,
-            mnc: c.mnc,
-            range: c.range,
-            updated: c.updated
-          }];
-        })
-      );
-
-      const towersArray = [...uniq.values()];
-      setTowers(towersArray);
-      setMesaj(`✅ ${towersArray.length} baz istasyonu yüklendi`);
-    } catch (err) {
-      console.error('[OCI] fetch error status:', err.response?.status);
-      console.error('[OCI] fetch error data:', err.response?.data);
-      if (err.response?.status === 401) setMesaj('⛔ Baz istasyonu verileri için yetki gerekli');
-      else if (err.response?.status === 404) setMesaj('❌ Baz istasyonu API endpoint bulunamadı');
-      else if (err.response?.status === 502 || err.response?.status === 504) setMesaj('🌐 OpenCellID API bağlantı/timeout sorunu');
-      else setMesaj(`❌ Baz istasyonu hatası: ${err.message}`);
+    const validCells = cells.filter(c => Number.isFinite(c.lat) && Number.isFinite(c.lon));
+    if (validCells.length === 0) {
+      setMesaj('Bu bölgede baz istasyonu bulunamadı');
       setTowers([]);
-    } finally {
-      setTowerLoading(false);
+      return;
     }
-  }, [OCID_KEY, token]);
+
+    const uniq = new Map(
+      validCells.map(c => {
+        const base = [c.mcc ?? 'x', c.mnc ?? 'x', c.lac ?? 'x', c.cellid ?? 'x'].join('-');
+        const id = `tower-${base}`;
+        return [id, {
+          id,
+          lat: c.lat,
+          lng: c.lon,
+          radio: c.radio,
+          mcc: c.mcc,
+          mnc: c.mnc,
+          range: c.range,
+          updated: c.updated
+        }];
+      })
+    );
+
+    const towersArray = [...uniq.values()];
+    setTowers(towersArray);
+    setMesaj(`✅ ${towersArray.length} baz istasyonu yüklendi`);
+  } catch (err) {
+    console.error('[OCI] fetch error status:', err.response?.status);
+    console.error('[OCI] fetch error data:', err.response?.data);
+    if (err.response?.status === 401) setMesaj('⛔ Baz istasyonu verileri için yetki gerekli');
+    else if (err.response?.status === 404) setMesaj('❌ Baz istasyonu API endpoint bulunamadı');
+    else if (err.response?.status === 502 || err.response?.status === 504) setMesaj('🌐 OpenCellID API bağlantı/timeout sorunu');
+    else setMesaj(`❌ Baz istasyonu hatası: ${err.message}`);
+    setTowers([]);
+  } finally {
+    setTowerLoading(false);
+  }
+}, [OCID_KEY, token]);
 
   // bbox hesapla + debounce + tekrar etmeyi engelle
   const handleMoveEnd = useCallback(() => {
@@ -221,7 +312,7 @@ function Harita() {
       if (lastBBoxRef.current === bboxStr) return;
       lastBBoxRef.current = bboxStr;
       fetchTowersByBBox(bboxStr);
-    }, 250);
+    }, 1200);
   }, [showTowers, fetchTowersByBBox]);
 
 function MapEventsBinder() {
@@ -279,7 +370,7 @@ function MapEventsBinder() {
       setMesaj("❌ Kayıt başarısız.");
     }
   };
-
+  
   const handleUserClick = (userId, username) => {
     setSelectedUserId(userId);
     setSelectedUsername(username);
@@ -450,20 +541,25 @@ function MapEventsBinder() {
             );
           })}
 
-          {/* Baz istasyonları */}
-          {showTowers && towers.map((t) => (
-            <Marker key={t.id} position={[t.lat, t.lng]} icon={towerIcon} draggable={false}>
-              <Popup>
-                📡 <b>Baz İstasyonu</b><br />
-                {t.radio && <>Teknoloji: {t.radio}<br /></>}
-                {t.mcc !== undefined && t.mnc !== undefined && <>MCC/MNC: {t.mcc}/{t.mnc}<br /></>}
-                {t.range && <>Tahmini kapsama yarıçapı: ~{t.range} m<br /></>}
-                {t.updated && <>Güncellendi: {new Date(t.updated).toLocaleString()}<br /></>}
-                Lat: {t.lat}<br />
-                Lng: {t.lng}
-              </Popup>
-            </Marker>
-          ))}
+          {/* Baz istasyonları (cluster) */}
+{showTowers && (
+  <ClusterLayer
+    points={towers.map(t => ({ id: t.id, lat: t.lat, lng: t.lng, ...t }))}
+    iconForPoint={() => towerIcon}
+    renderPopup={(t) => (
+      <>
+        📡 <b>Baz İstasyonu</b><br />
+        {t.radio && <>Teknoloji: {t.radio}<br /></>}
+        {t.mcc !== undefined && t.mnc !== undefined && <>MCC/MNC: {t.mcc}/{t.mnc}<br /></>}
+        {t.range && <>Tahmini kapsama yarıçapı: ~{t.range} m<br /></>}
+        {t.updated && <>Güncellendi: {new Date(t.updated).toLocaleString()}<br /></>}
+        Lat: {t.lat}<br />
+        Lng: {t.lng}
+      </>
+    )}
+  />
+)}
+
         </MapContainer>
       </main>
     </div>
