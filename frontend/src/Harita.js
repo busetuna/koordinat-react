@@ -7,7 +7,8 @@ import 'leaflet/dist/leaflet.css';
 import './Harita.css';
 import Select from 'react-select';
 import Supercluster from 'supercluster';
-
+import TowersLayer from "./components/TowersLayer";
+import MarkerClusterGroup from "react-leaflet-cluster";
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -49,7 +50,7 @@ function ClusterLayer({ points, iconForPoint, renderPopup }) {
   const index = useMemo(() => {
     const sc = new Supercluster({
       radius: 60,     // piksel cinsinden cluster yarıçapı
-      maxZoom: 18   // en fazla hangi zoom’da cluster olsun
+      maxZoom: 14   // en fazla hangi zoom’da cluster olsun
     });
     sc.load(
       points.map(p => ({
@@ -149,26 +150,34 @@ function Harita() {
       popupAnchor: [0, -40],
     });
   };
-
-  // 📡 Tower ikonu
-  const towerIcon = useMemo(() => {
-    const svg = `
-      <svg width="34" height="34" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <g fill="currentColor">
-          <path d="M12 2a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1z"/>
-          <path d="M7 22h10l-3-9h-4l-3 9zM6.5 8.5a5.5 5.5 0 0 1 11 0a.75.75 0 1 0 1.5 0a7 7 0 1 0-14 0a.75.75 0 1 0 1.5 0z"/>
-          <path d="M8.5 8.5a3.5 3.5 0 0 1 7 0a.75.75 0 1 0 1.5 0a5 5 0 1 0-10 0a.75.75 0 1 0 1.5 0z"/>
-        </g>
-      </svg>
-    `;
-    return L.divIcon({
-      className: 'tower-icon',
-      html: `<div style="color:#7c3aed">${svg}</div>`,
-      iconSize: [34, 34],
-      iconAnchor: [17, 34],
-      popupAnchor: [0, -34],
-    });
-  }, []);
+  // cluster balon iconu
+const clusterIcon = (count) => L.divIcon({
+  html: `<div style="
+    width:36px;height:36px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    background:#4f46e5;color:#fff;font-weight:800;font-family:system-ui;
+    box-shadow:0 2px 6px rgba(0,0,0,.35)
+  ">${count}</div>`,
+  className: "",
+  iconSize: [36,36],
+  iconAnchor: [18,18],
+});
+// tower pin (renkli)
+const towerIcon = (radio) => {
+  const letter = radio==="GSM"?"G":radio==="UMTS"?"U":radio==="LTE"?"L":radio==="NR"?"5":"?";
+  const bg = radio==="GSM"?"#ef4444":radio==="UMTS"?"#f97316":radio==="LTE"?"#3b82f6":radio==="NR"?"#22c55e":"#6b7280";
+  return L.divIcon({
+    html: `<div style="
+      width:24px;height:24px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      background:${bg};color:#fff;font-weight:700;font-family:system-ui;
+      box-shadow:0 1px 4px rgba(0,0,0,.35)
+    ">${letter}</div>`,
+    className: "",
+    iconSize: [24,24],
+    iconAnchor: [12,12],
+  });
+};
 
   const showTowersRef = useRef(showTowers);
   
@@ -242,11 +251,15 @@ function Harita() {
       headers: { Authorization: `Bearer ${token}` },
       params: { bbox: bboxStr }
     });
+    console.log('[OCI] full response:', res);
+    console.log('[OCI] res.data:', res.data); 
+    console.log('[OCI] res.status:', res.status);
+    console.log('[OCI] headers:', res.headers);
 
     // ✅ backend artık url ve body döndürüyor
     if (res.data?.error) {
       setMesaj(`🚫 OCID: ${res.data.error} (status ${res.status || res.data.status || '?'})`);
-      console.warn('[OCI] url:', res.data.url || '(yok)');
+      console.warn('[OCI] url:', res.data.url || res.data._debug_url || '(yok)');
       console.warn('[OCI] body:', res.data.body);
       setTowers([]);
       return;
@@ -302,7 +315,8 @@ function Harita() {
 
     const b = map.getBounds();
     const sw = b.getSouthWest(), ne = b.getNorthEast();
-    const bboxStr = `${sw.lat.toFixed(4)},${sw.lng.toFixed(4)},${ne.lat.toFixed(4)},${ne.lng.toFixed(4)}`;
+    const bboxStr = `${sw.lng.toFixed(4)},${sw.lat.toFixed(4)},${ne.lng.toFixed(4)},${ne.lat.toFixed(4)}`;
+
     console.log('[OCI] moveend:', { zoom: map.getZoom(), showTowers, bboxStr });
 
     if (!showTowers) { setTowers([]); return; }
@@ -321,7 +335,8 @@ function MapEventsBinder() {
       // bbox hesapla
       const b = map.getBounds();
       const sw = b.getSouthWest(), ne = b.getNorthEast();
-      const bboxStr = `${sw.lat.toFixed(4)},${sw.lng.toFixed(4)},${ne.lat.toFixed(4)},${ne.lng.toFixed(4)}`;
+      const bboxStr = `${sw.lng.toFixed(4)},${sw.lat.toFixed(4)},${ne.lng.toFixed(4)},${ne.lat.toFixed(4)}`;
+
       console.log('[OCI] moveend bbox:', bboxStr, 'zoom:', map.getZoom(), 'showTowers:', showTowersRef.current);
 
       if (!showTowersRef.current) { setTowers([]); return; }
@@ -501,7 +516,7 @@ function MapEventsBinder() {
 
         <MapContainer
           center={defaultCenter}
-          zoom={15}
+          zoom={18}
           style={{ height: '600px', marginTop: '10px' }}
           
         >
@@ -541,24 +556,34 @@ function MapEventsBinder() {
             );
           })}
 
-          {/* Baz istasyonları (cluster) */}
-{showTowers && (
-  <ClusterLayer
-    points={towers.map(t => ({ id: t.id, lat: t.lat, lng: t.lng, ...t }))}
-    iconForPoint={() => towerIcon}
-    renderPopup={(t) => (
-      <>
-        📡 <b>Baz İstasyonu</b><br />
-        {t.radio && <>Teknoloji: {t.radio}<br /></>}
-        {t.mcc !== undefined && t.mnc !== undefined && <>MCC/MNC: {t.mcc}/{t.mnc}<br /></>}
-        {t.range && <>Tahmini kapsama yarıçapı: ~{t.range} m<br /></>}
-        {t.updated && <>Güncellendi: {new Date(t.updated).toLocaleString()}<br /></>}
-        Lat: {t.lat}<br />
-        Lng: {t.lng}
-      </>
-    )}
-  />
+          {showTowers && (
+  <MarkerClusterGroup
+    chunkedLoading
+    showCoverageOnHover={false}
+    spiderfyOnMaxZoom={true}
+    disableClusteringAtZoom={19}
+    maxClusterRadius={40}
+    iconCreateFunction={(cluster) => clusterIcon(cluster.getChildCount())}
+  >
+    {towers.map((t, i) => (
+      <Marker
+        key={t.id || i}
+        position={[t.lat, t.lng]}
+        icon={towerIcon(t.radio)}
+      >
+        <Popup>
+          📡 <b>Baz İstasyonu</b><br/>
+          {t.radio && <>Teknoloji: {t.radio}<br/></>}
+          {t.mcc !== undefined && t.mnc !== undefined && <>MCC/MNC: {t.mcc}/{t.mnc}<br/></>}
+          {t.range && <>Tahmini kapsama yarıçapı: ~{t.range} m<br/></>}
+          {t.updated && <>Güncellendi: {new Date(t.updated).toLocaleString()}<br/></>}
+          Lat: {t.lat}<br/>Lng: {t.lng}
+        </Popup>
+      </Marker>
+    ))}
+  </MarkerClusterGroup>
 )}
+
 
         </MapContainer>
       </main>
