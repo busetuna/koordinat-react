@@ -1,14 +1,16 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback  } from 'react';
 import axios from 'axios';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, Pane, useMapEvents, useMap } from 'react-leaflet';
+
 import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './Harita.css';
 import Select from 'react-select';
-import Supercluster from 'supercluster';
-import TowersLayer from "./components/TowersLayer";
-import MarkerClusterGroup from "react-leaflet-cluster";
+// import Supercluster from 'supercluster';
+// import TowersLayer from "./components/TowersLayer";
+// import MarkerClusterGroup from "react-leaflet-cluster";
+import { renderTACircles } from "./timingAdvanceUtils";
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -20,84 +22,84 @@ L.Icon.Default.mergeOptions({
 
 
 
-// Basit cluster balonu
-const createClusterIcon = (count) =>
-  L.divIcon({
-    html: `<div style="
-      width:36px;height:36px;border-radius:50%;
-      display:flex;align-items:center;justify-content:center;
-      background:#4f46e5;color:#fff;font-weight:700">${count}</div>`,
-    className: 'cluster-icon',
-    iconSize: [36,36]
-  });
+// // Basit cluster balonu
+// const createClusterIcon = (count) =>
+//   L.divIcon({
+//     html: `<div style="
+//       width:36px;height:36px;border-radius:50%;
+//       display:flex;align-items:center;justify-content:center;
+//       background:#4f46e5;color:#fff;font-weight:700">${count}</div>`,
+//     className: 'cluster-icon',
+//     iconSize: [36,36]
+//   });
 
-function ClusterLayer({ points, iconForPoint, renderPopup }) {
-  const map = useMap();
-  const [bounds, setBounds] = useState(map.getBounds());
-  const [zoom, setZoom] = useState(map.getZoom());
+// function ClusterLayer({ points, iconForPoint, renderPopup }) {
+//   const map = useMap();
+//   const [bounds, setBounds] = useState(map.getBounds());
+//   const [zoom, setZoom] = useState(map.getZoom());
 
-  useEffect(() => {
-    const onMove = () => {
-      setBounds(map.getBounds());
-      setZoom(map.getZoom());
-    };
-    map.on('moveend', onMove);
-    // ilk render’da da tetikle
-    onMove();
-    return () => map.off('moveend', onMove);
-  }, [map]);
+//   useEffect(() => {
+//     const onMove = () => {
+//       setBounds(map.getBounds());
+//       setZoom(map.getZoom());
+//     };
+//     map.on('moveend', onMove);
+//     // ilk render’da da tetikle
+//     onMove();
+//     return () => map.off('moveend', onMove);
+//   }, [map]);
 
-  const index = useMemo(() => {
-    const sc = new Supercluster({
-      radius: 60,     // piksel cinsinden cluster yarıçapı
-      maxZoom: 14   // en fazla hangi zoom’da cluster olsun
-    });
-    sc.load(
-      points.map(p => ({
-        type: 'Feature',
-        properties: { ...p },
-        geometry: { type: 'Point', coordinates: [p.lng, p.lat] }
-      }))
-    );
-    return sc;
-  }, [points]);
+//   const index = useMemo(() => {
+//     const sc = new Supercluster({
+//       radius: 60,     // piksel cinsinden cluster yarıçapı
+//       maxZoom: 14   // en fazla hangi zoom’da cluster olsun
+//     });
+//     sc.load(
+//       points.map(p => ({
+//         type: 'Feature',
+//         properties: { ...p },
+//         geometry: { type: 'Point', coordinates: [p.lng, p.lat] }
+//       }))
+//     );
+//     return sc;
+//   }, [points]);
 
-  const b = bounds;
-  const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
-  const clusters = index.getClusters(bbox, Math.round(zoom));
+//   const b = bounds;
+//   const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+//   const clusters = index.getClusters(bbox, Math.round(zoom));
 
-  return clusters.map((c) => {
-    const [lng, lat] = c.geometry.coordinates;
-    const { cluster, point_count: count } = c.properties;
+//   return clusters.map((c) => {
+//     const [lng, lat] = c.geometry.coordinates;
+//     const { cluster, point_count: count } = c.properties;
 
-    if (cluster) {
-      return (
-        <Marker
-          key={`cluster-${c.id}`}
-          position={[lat, lng]}
-          icon={createClusterIcon(count)}
-          eventHandlers={{
-            click: () => {
-              const nextZoom = Math.min(index.getClusterExpansionZoom(c.id), 19);
-              map.setView([lat, lng], nextZoom, { animate: true });
-            }
-          }}
-        />
-      );
-    }
+//     if (cluster) {
+//       return (
+//         <Marker
+//           key={`cluster-${c.id}`}
+//           position={[lat, lng]}
+//           icon={createClusterIcon(count)}
+//           eventHandlers={{
+//             click: () => {
+//               const nextZoom = Math.min(index.getClusterExpansionZoom(c.id), 19);
+//               map.setView([lat, lng], nextZoom, { animate: true });
+//             }
+//           }}
+//         />
+//       );
+//     }
 
-    const p = c.properties; // tekil nokta
-    return (
-      <Marker
-        key={p.id}
-        position={[lat, lng]}
-        icon={iconForPoint ? iconForPoint(p) : undefined}
-      >
-        {renderPopup && <Popup>{renderPopup(p)}</Popup>}
-      </Marker>
-    );
-  });
-}
+//     const p = c.properties; // tekil nokta
+//     return (
+//       <Marker
+//         key={p.id}
+//         position={[lat, lng]}
+//         icon={iconForPoint ? iconForPoint(p) : undefined}
+//       >
+//         {renderPopup && <Popup>{renderPopup(p)}</Popup>}
+//       </Marker>
+//     );
+//   });
+// }
 
 
 const defaultCenter = [41.085, 29.05]; // yakın başla (İST çevresi gibi), istersen 20,0 yap
@@ -116,7 +118,10 @@ function Harita() {
   const [endDate, setEndDate] = useState('');
   const [showTowers, setShowTowers] = useState(true);
   const [towerLoading, setTowerLoading] = useState(false);
-
+  const [showTA, setShowTA] = useState(true);   // TA halkalarını göster/gizle
+  const [taValue, setTaValue] = useState(10);   // örnek TA değeri
+  const [techMode, setTechMode] = useState('auto'); // 'auto' | 'lte' | 'gsm' | 'nr'
+  const [drawBand, setDrawBand] = useState(true);
   const navigate = useNavigate();
   const mapRef = useRef(null);
   const lastBBoxRef = useRef(null);
@@ -150,18 +155,18 @@ function Harita() {
       popupAnchor: [0, -40],
     });
   };
-  // cluster balon iconu
-const clusterIcon = (count) => L.divIcon({
-  html: `<div style="
-    width:36px;height:36px;border-radius:50%;
-    display:flex;align-items:center;justify-content:center;
-    background:#4f46e5;color:#fff;font-weight:800;font-family:system-ui;
-    box-shadow:0 2px 6px rgba(0,0,0,.35)
-  ">${count}</div>`,
-  className: "",
-  iconSize: [36,36],
-  iconAnchor: [18,18],
-});
+//   // cluster balon iconu
+// const clusterIcon = (count) => L.divIcon({
+//   html: `<div style="
+//     width:36px;height:36px;border-radius:50%;
+//     display:flex;align-items:center;justify-content:center;
+//     background:#4f46e5;color:#fff;font-weight:800;font-family:system-ui;
+//     box-shadow:0 2px 6px rgba(0,0,0,.35)
+//   ">${count}</div>`,
+//   className: "",
+//   iconSize: [36,36],
+//   iconAnchor: [18,18],
+// });
 // tower pin (renkli)
 const towerIcon = (radio) => {
   const letter = radio==="GSM"?"G":radio==="UMTS"?"U":radio==="LTE"?"L":radio==="NR"?"5":"?";
@@ -361,6 +366,14 @@ function MapEventsBinder() {
 
   return null;
 }
+  const uniqueTowers = useMemo(() => {
+  const acc = {};
+  for (const t of (towers || [])) {
+    const key = `${Number(t.lat).toFixed(6)},${Number(t.lng).toFixed(6)}`;
+    if (!acc[key]) acc[key] = t; // aynı noktadan sadece ilkini al
+  }
+  return Object.values(acc);
+}, [towers]);
 
   const handleKaydet = async () => {
     const latNum = parseFloat(lat);
@@ -517,7 +530,9 @@ function MapEventsBinder() {
         <MapContainer
           center={defaultCenter}
           zoom={18}
+          
           style={{ height: '600px', marginTop: '10px' }}
+          
           
         >
           <TileLayer
@@ -525,6 +540,8 @@ function MapEventsBinder() {
             attribution="&copy; OpenStreetMap contributors"
             noWrap={true}
           />
+          <Pane name="ta-pane" style={{ zIndex: 650 }} />
+         
 
           {/* moveend bağlayıcı */}
           <MapEventsBinder />
@@ -556,35 +573,45 @@ function MapEventsBinder() {
             );
           })}
 
-          {showTowers && (
-  <MarkerClusterGroup
-    chunkedLoading
-    showCoverageOnHover={false}
-    spiderfyOnMaxZoom={true}
-    disableClusteringAtZoom={19}
-    maxClusterRadius={40}
-    iconCreateFunction={(cluster) => clusterIcon(cluster.getChildCount())}
-  >
-    {towers.map((t, i) => (
+{showTowers && (
+  <>
+    {uniqueTowers.map((t, i) => (
       <Marker
         key={t.id || i}
-        position={[t.lat, t.lng]}
+        position={[Number(t.lat), Number(t.lng)]}
         icon={towerIcon(t.radio)}
       >
         <Popup>
-          📡 <b>Baz İstasyonu</b><br/>
-          {t.radio && <>Teknoloji: {t.radio}<br/></>}
-          {t.mcc !== undefined && t.mnc !== undefined && <>MCC/MNC: {t.mcc}/{t.mnc}<br/></>}
-          {t.range && <>Tahmini kapsama yarıçapı: ~{t.range} m<br/></>}
-          {t.updated && <>Güncellendi: {new Date(t.updated).toLocaleString()}<br/></>}
-          Lat: {t.lat}<br/>Lng: {t.lng}
+          📡 <b>Baz İstasyonu</b><br />
+          {t.radio && <>Teknoloji: {t.radio}<br /></>}
+          {t.mcc !== undefined && t.mnc !== undefined && <>MCC/MNC: {t.mcc}/{t.mnc}<br /></>}
+          {t.range && <>Tahmini kapsama yarıçapı: ~{t.range} m<br /></>}
+          {t.updated && <>Güncellendi: {new Date(t.updated).toLocaleString()}<br /></>}
+          Lat: {t.lat}<br />Lng: {t.lng}
         </Popup>
       </Marker>
     ))}
-  </MarkerClusterGroup>
+  </>
 )}
+{showTA && taValue > 0 && uniqueTowers.map((t, i) => (
+  <React.Fragment key={`ta-${t.id || i}`}>
+    {renderTACircles(
+      { ...t, lat: Number(t.lat), lng: Number(t.lng) },
+      taValue,
+      techMode,
+      drawBand,
+      (info) => {
+        // Bilgiyi istediğin gibi göster:
+        setMesaj(`📡 TA=${info.taValue} • yarıçap≈${info.radius.toFixed(1)} m • teknoloji=${info.tech} • (${info.center.lat.toFixed(5)}, ${info.center.lng.toFixed(5)})`);
+      }
+    )}
+  </React.Fragment>
+))}
 
 
+
+
+   {/* <Circle center={[41.085 , 29.047]} radius={400} pane="ta-pane" /> */}
         </MapContainer>
       </main>
     </div>
