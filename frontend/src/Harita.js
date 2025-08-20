@@ -582,7 +582,7 @@ function MapEventsBinder() {
         icon={towerIcon(t.radio)}
       >
         <Popup>
-          📡 <b>Baz İstasyonu</b><br />
+          <b>Baz İstasyonu</b><br />
           {t.radio && <>Teknoloji: {t.radio}<br /></>}
           {t.mcc !== undefined && t.mnc !== undefined && <>MCC/MNC: {t.mcc}/{t.mnc}<br /></>}
           {t.range && <>Tahmini kapsama yarıçapı: ~{t.range} m<br /></>}
@@ -601,7 +601,7 @@ function MapEventsBinder() {
       techMode,
       drawBand,
       (info) => {
-        // Bilgiyi istediğin gibi göster:
+       
         setMesaj(`📡 TA=${info.taValue} • yarıçap≈${info.radius.toFixed(1)} m • teknoloji=${info.tech} • (${info.center.lat.toFixed(5)}, ${info.center.lng.toFixed(5)})`);
       }
     )}

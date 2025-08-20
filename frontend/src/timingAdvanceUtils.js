@@ -14,16 +14,12 @@ export function getTAUnitMeters(radio, techMode) {
 /** Teknoloji rengine karar ver */
 export function techColor(radio, techMode) {
   const r = (techMode === "auto" ? (radio || "").toUpperCase() : techMode.toUpperCase());
-  if (r.includes("GSM") || r === "GSM") return "#dc2626";             // kırmızı
-  if (r.includes("LTE") || r === "LTE" || r === "4G") return "#2563eb"; // mavi
-  if (r.includes("NR")  || r === "NR"  || r === "5G") return "#7c3aed"; // mor
-  return "#475569"; // slate
+  if (r.includes("GSM") || r === "GSM") return "#dc2626";             
+  if (r.includes("LTE") || r === "LTE" || r === "4G") return "#2563eb"; 
+  if (r.includes("NR")  || r === "NR"  || r === "5G") return "#7c3aed"; 
+  return "#475569"; 
 }
 
-/**
- * Belirli bir istasyon ve TA için Leaflet Circle(lar) döndürür.
- * onClickCircle(info) ile tıklamada bilgi gönderir.
- */
 export function renderTACircles(tower, taValue, techMode = "auto", drawBand = true, onClickCircle) {
   const lat = Number(tower?.lat);
   const lng = Number(tower?.lng);

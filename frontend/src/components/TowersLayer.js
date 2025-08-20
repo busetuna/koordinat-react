@@ -1,4 +1,3 @@
-// src/components/TowersLayer.js
 import { Marker, Popup } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import L from "leaflet";
